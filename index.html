@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Audio Control Interface</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --card: #16161f;
+      --border: #2a2a3a;
+      --accent: #c8f03d;
+      --accent2: #f03d8a;
+      --text: #e8e8f0;
+      --muted: #6b6b88;
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-display);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(200,240,61,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,240,61,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 540px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+    .header .tag {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 2px 8px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.8rem;
+      box-shadow: 0 0 60px rgba(200,240,61,0.04), 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    /* File loader */
+    .file-section {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .file-drop {
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .file-drop:hover { border-color: var(--accent); background: rgba(200,240,61,0.03); }
+    .file-drop input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .file-icon {
+      width: 36px; height: 36px;
+      background: rgba(200,240,61,0.1);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.1rem;
+    }
+    .file-info { flex: 1; min-width: 0; }
+    .file-name {
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .file-hint {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Waveform / progress visualizer */
+    .progress-section { display: flex; flex-direction: column; gap: 0.6rem; }
+    .time-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .progress-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      transition: width 0.1s linear;
+      pointer-events: none;
+    }
+    .progress-track:hover .progress-fill { filter: brightness(1.15); }
+
+    /* Big time display */
+    .big-time {
+      font-family: var(--font-mono);
+      font-size: 2.8rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text);
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+    .big-time span { color: var(--accent); }
+
+    /* Main controls */
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+    .btn {
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-display);
+      font-weight: 700;
+      border-radius: 8px;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn-icon {
+      width: 44px; height: 44px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 1rem;
+      border-radius: 10px;
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-icon.active { background: rgba(200,240,61,0.12); border-color: var(--accent); color: var(--accent); }
+
+    .btn-play {
+      width: 62px; height: 62px;
+      background: var(--accent);
+      color: var(--bg);
+      font-size: 1.3rem;
+      border-radius: 50%;
+      border: none;
+      box-shadow: 0 0 30px rgba(200,240,61,0.3);
+    }
+    .btn-play:hover { background: #d9ff45; box-shadow: 0 0 40px rgba(200,240,61,0.5); }
+    .btn-play:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+    /* Volume row */
+    .volume-row {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .vol-icon { font-size: 1rem; cursor: pointer; user-select: none; transition: color 0.15s; }
+    .vol-icon:hover { color: var(--accent); }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 5px;
+      border-radius: 3px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(200,240,61,0.5);
+      transition: transform 0.15s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    .vol-value {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      width: 30px;
+      text-align: right;
+    }
+
+    /* Speed & extras row */
+    .extras-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      flex-wrap: wrap;
+    }
+    .speed-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .speed-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .btn-speed {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-speed:hover { border-color: var(--accent2); color: var(--text); }
+    .btn-speed.active { background: rgba(240,61,138,0.15); border-color: var(--accent2); color: var(--accent2); }
+
+    /* Keyboard hint */
+    .kb-hint {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .kb-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--muted);
+    }
+    kbd {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text);
+    }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .status-dot.playing {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header">
+    <h1>AudioCtrl</h1>
+    <span class="tag">v1.0</span>
+  </div>
+
+  <div class="card">
+
+    <!-- Status -->
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">No file loaded</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- File Loader -->
+    <div class="file-section">
+      <div class="section-label">01 — Load Audio</div>
+      <div class="file-drop">
+        <input type="file" id="fileInput" accept="audio/*" />
+        <div class="file-icon">🎵</div>
+        <div class="file-info">
+          <div class="file-name" id="fileName">Click or drop to load audio file</div>
+          <div class="file-hint">MP3 · WAV · OGG · FLAC · M4A</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Big Time Display -->
+    <div class="big-time" id="bigTime"><span>00</span>:<span>00</span></div>
+
+    <!-- Progress Bar -->
+    <div class="progress-section">
+      <div class="time-row">
+        <span id="currentTime">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
+
+    <!-- Main Controls: skip back | play | skip forward | mute | loop -->
+    <div class="controls-row">
+      <button class="btn btn-icon" id="btnSkipBack" title="Skip back 10s (← Arrow)">⏮ 10</button>
+      <button class="btn btn-play" id="btnPlay" disabled title="Play / Pause (Space)">▶</button>
+      <button class="btn btn-icon" id="btnSkipFwd" title="Skip forward 10s (→ Arrow)">10 ⏭</button>
+      <button class="btn btn-icon" id="btnMute" title="Mute / Unmute (M)">🔊</button>
+      <button class="btn btn-icon" id="btnLoop" title="Loop">🔁</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Volume -->
+    <div class="volume-row">
+      <span class="section-label" style="white-space:nowrap;">02 — Volume</span>
+      <span class="vol-icon" id="volIcon">🔊</span>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
+      <span class="vol-value" id="volValue">100%</span>
+    </div>
+
+    <!-- Speed -->
+    <div class="extras-row">
+      <span class="speed-label">03 — Speed:</span>
+      <div class="speed-btns">
+        <button class="btn-speed" data-speed="0.5">0.5×</button>
+        <button class="btn-speed" data-speed="0.75">0.75×</button>
+        <button class="btn-speed active" data-speed="1">1×</button>
+        <button class="btn-speed" data-speed="1.25">1.25×</button>
+        <button class="btn-speed" data-speed="1.5">1.5×</button>
+        <button class="btn-speed" data-speed="2">2×</button>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Keyboard Hints -->
+    <div class="kb-hint">
+      <div class="kb-item"><kbd>Space</kbd> Play/Pause</div>
+      <div class="kb-item"><kbd>←</kbd> −10s</div>
+      <div class="kb-item"><kbd>→</kbd> +10s</div>
+      <div class="kb-item"><kbd>M</kbd> Mute</div>
+      <div class="kb-item"><kbd>L</kbd> Loop</div>
+      <div class="kb-item"><kbd>↑</kbd><kbd>↓</kbd> Volume</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Hidden audio element -->
+<audio id="audioPlayer"></audio>
+
+<script>
+  // ─── Element references ───────────────────────────────────────────────────
+  const audio         = document.getElementById('audioPlayer');
+  const fileInput     = document.getElementById('fileInput');
+  const fileName      = document.getElementById('fileName');
+  const btnPlay       = document.getElementById('btnPlay');
+  const btnSkipBack   = document.getElementById('btnSkipBack');
+  const btnSkipFwd    = document.getElementById('btnSkipFwd');
+  const btnMute       = document.getElementById('btnMute');
+  const btnLoop       = document.getElementById('btnLoop');
+  const volumeSlider  = document.getElementById('volumeSlider');
+  const volValue      = document.getElementById('volValue');
+  const volIcon       = document.getElementById('volIcon');
+  const progressFill  = document.getElementById('progressFill');
+  const progressTrack = document.getElementById('progressTrack');
+  const currentTimeEl = document.getElementById('currentTime');
+  const durationEl    = document.getElementById('duration');
+  const bigTime       = document.getElementById('bigTime');
+  const statusDot     = document.getElementById('statusDot');
+  const statusText    = document.getElementById('statusText');
+  const speedBtns     = document.querySelectorAll('.btn-speed');
+
+  // ─── State ────────────────────────────────────────────────────────────────
+  let isLoaded = false;
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  function formatTime(secs) {
+    if (isNaN(secs) || secs < 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function formatBig(secs) {
+    if (isNaN(secs) || secs < 0) return '<span>00</span>:<span>00</span>';
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = Math.floor(secs % 60).toString().padStart(2, '0');
+    return `<span>${m}</span>:<span>${s}</span>`;
+  }
+
+  function setStatus(playing) {
+    if (!isLoaded) {
+      statusDot.className = 'status-dot';
+      statusText.textContent = 'No file loaded';
+      return;
+    }
+    if (playing) {
+      statusDot.className = 'status-dot playing';
+      statusText.textContent = 'Playing';
+    } else {
+      statusDot.className = 'status-dot';
+      statusText.textContent = 'Paused';
+    }
+  }
+
+  function updateVolumeUI() {
+    const v = audio.volume;
+    volumeSlider.value = audio.muted ? 0 : v;
+    const pct = Math.round((audio.muted ? 0 : v) * 100);
+    volValue.textContent = pct + '%';
+    if (audio.muted || v === 0) {
+      volIcon.textContent = '🔇';
+      btnMute.textContent = '🔇';
+    } else if (v < 0.5) {
+      volIcon.textContent = '🔉';
+      btnMute.textContent = '🔊';
+    } else {
+      volIcon.textContent = '🔊';
+      btnMute.textContent = '🔊';
+    }
+  }
+
+  // ─── File Loading ─────────────────────────────────────────────────────────
+  fileInput.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    // Revoke any previous object URL to free memory
+    if (audio.src && audio.src.startsWith('blob:')) {
+      URL.revokeObjectURL(audio.src);
+    }
+
+    const url = URL.createObjectURL(file);
+    audio.src = url;
+    audio.load();
+
+    fileName.textContent = file.name;
+    isLoaded = true;
+    btnPlay.disabled = false;
+    setStatus(false);
+  });
+
+  // ─── Play / Pause ─────────────────────────────────────────────────────────
+  btnPlay.addEventListener('click', togglePlay);
+
+  function togglePlay() {
+    if (!isLoaded) return;
+    if (audio.paused) {
+      audio.play();
+    } else {
+      audio.pause();
+    }
+  }
+
+  audio.addEventListener('play', () => {
+    btnPlay.textContent = '⏸';
+    setStatus(true);
+  });
+
+  audio.addEventListener('pause', () => {
+    btnPlay.textContent = '▶';
+    setStatus(false);
+  });
+
+  audio.addEventListener('ended', () => {
+    btnPlay.textContent = '▶';
+    setStatus(false);
+    progressFill.style.width = '0%';
+    bigTime.innerHTML = formatBig(0);
+  });
+
+  // ─── Time Update / Progress ───────────────────────────────────────────────
+  audio.addEventListener('timeupdate', () => {
+    const ct = audio.currentTime;
+    const dur = audio.duration;
+
+    currentTimeEl.textContent = formatTime(ct);
+    bigTime.innerHTML = formatBig(ct);
+
+    if (!isNaN(dur) && dur > 0) {
+      progressFill.style.width = ((ct / dur) * 100) + '%';
+    }
+  });
+
+  audio.addEventListener('loadedmetadata', () => {
+    durationEl.textContent = formatTime(audio.duration);
+  });
+
+  // ─── Progress Seek ────────────────────────────────────────────────────────
+  progressTrack.addEventListener('click', function (e) {
+    if (!isLoaded || isNaN(audio.duration)) return;
+    const rect = this.getBoundingClientRect();
+    const pct  = (e.clientX - rect.left) / rect.width;
+    audio.currentTime = pct * audio.duration;
+  });
+
+  // ─── Skip Buttons ─────────────────────────────────────────────────────────
+  btnSkipBack.addEventListener('click', () => {
+    if (!isLoaded) return;
+    audio.currentTime = Math.max(0, audio.currentTime - 10);
+  });
+
+  btnSkipFwd.addEventListener('click', () => {
+    if (!isLoaded) return;
+    audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10);
+  });
+
+  // ─── Volume Slider ────────────────────────────────────────────────────────
+  volumeSlider.addEventListener('input', function () {
+    audio.volume = parseFloat(this.value);
+    if (audio.muted && audio.volume > 0) audio.muted = false;
+    updateVolumeUI();
+  });
+
+  // ─── Mute / Unmute ────────────────────────────────────────────────────────
+  btnMute.addEventListener('click', toggleMute);
+  volIcon.addEventListener('click', toggleMute);
+
+  function toggleMute() {
+    audio.muted = !audio.muted;
+    btnMute.classList.toggle('active', audio.muted);
+    updateVolumeUI();
+  }
+
+  // ─── Loop ─────────────────────────────────────────────────────────────────
+  btnLoop.addEventListener('click', () => {
+    audio.loop = !audio.loop;
+    btnLoop.classList.toggle('active', audio.loop);
+    btnLoop.title = audio.loop ? 'Loop ON' : 'Loop OFF';
+  });
+
+  // ─── Playback Speed ───────────────────────────────────────────────────────
+  speedBtns.forEach(btn => {
+    btn.addEventListener('click', function () {
+      speedBtns.forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      audio.playbackRate = parseFloat(this.dataset.speed);
+    });
+  });
+
+  // ─── Keyboard Controls ────────────────────────────────────────────────────
+  document.addEventListener('keydown', function (e) {
+    // Ignore if user is typing in an input
+    if (e.target.tagName === 'INPUT') return;
+
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault();
+        togglePlay();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (isLoaded) audio.currentTime = Math.max(0, audio.currentTime - 10);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (isLoaded) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 10);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        audio.volume = Math.min(1, audio.volume + 0.05);
+        volumeSlider.value = audio.volume;
+        if (audio.muted) audio.muted = false;
+        updateVolumeUI();
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        audio.volume = Math.max(0, audio.volume - 0.05);
+        volumeSlider.value = audio.volume;
+        updateVolumeUI();
+        break;
+      case 'KeyM':
+        toggleMute();
+        break;
+      case 'KeyL':
+        btnLoop.click();
+        break;
+    }
+  });
+
+  // ─── Init UI ──────────────────────────────────────────────────────────────
+  updateVolumeUI();
+  setStatus(false);
+</script>
+
+</body>
+</html>
